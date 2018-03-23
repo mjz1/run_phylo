@@ -10,6 +10,8 @@ To run the PhyloWGS pipeline you require CNV calls from Battenberg (the subclone
 For a single sample run
 ```{bash}
 phylowgs.pl -n sample_name -m mut_rda -c battenberg_subclones -o outdir -p purity [-s sex]
+
+sex in 'male' or 'female' format. 
 ```
 A wrapper to run multiple samples will work with the same manifest given to run.battenberg.pl, with a final column appended indicating the location of the sample mutect rda calls. It requires this `sample_info.txt`, the `battenberg results directory` and an `output directory`.
 
