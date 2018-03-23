@@ -101,7 +101,7 @@ while (my $row = <$info>) {
 	print("Submitting $sample_name to PhyloWGS\n");
 	my $phylo = TorquePBS->new(
 		jobname => "$sample_name.phylowgs",
-		command => "perl /home/mjz1/bin/run_phylowgs/phylowgs.pl -n $sample_name -m $mut -c $subclones_out -o $sample_dir -p $cellularity -s $sex",
+		command => "phylowgs.pl -n $sample_name -m $mut -c $subclones_out -o $sample_dir -p $cellularity -s $sex",
 		log_dir => "$sample_dir/log",
 		root_dir => "$sample_dir",
 		script_dir => "$sample_dir/scripts",
