@@ -75,9 +75,13 @@ while (my $row = <$info>) {
 	}
 
 	my $sample_dir = "$outdir/$sample_name"."_phylowgs";
+	my $file_check = "$sample_dir/outputs/3B.txt.gz";
 
 	# Check for output files:...
-
+	if (-e $file_check) {
+		print "PhyloWGS output already detected for $sample_name...Skipping...\n";
+		next;
+	}
 
 	my $bberg_sample_dir = "$bberg_dir/$sample_name"."_battenberg";
 	my $subclones_out = (File::Find::Rule->file()->name("*_subclones.txt")->maxdepth("1")->in($bberg_sample_dir))[0];
