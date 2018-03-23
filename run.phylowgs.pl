@@ -1,10 +1,6 @@
 #!/hpf/tools/centos6/perl/5.20.1/bin/perl
 # Wrapper script to launch the phylowgs pipeline.
 
-# For testing
-# perl /home/mjz1/bin/run_phylowgs/run.phylowgs.pl -i /hpf/largeprojects/adam/projects/icgc_tcga_datasets/RNAmp/kics/manifests/manifest.ascat.rdas.txt -b /hpf/largeprojects/adam/projects/icgc_tcga_datasets/RNAmp/kics/data/battenberg_3.3.2cgp_2.2.8bberg -o /hpf/largeprojects/adam/projects/icgc_tcga_datasets/RNAmp/kics/data/phylowgs
-
-
 use Getopt::Long;
 use Data::Dumper;
 use List::MoreUtils qw/ uniq/;
@@ -120,5 +116,5 @@ print "ALL DONE!\n";
 
 
 sub help {
-	print "Usage: $0 -i SAMPLE_INFO -o OUTDIR -b BATTENBERG_DIR\n";
+	print "Usage: $0 -i SAMPLE_INFO -o OUTDIR\n";
 }
