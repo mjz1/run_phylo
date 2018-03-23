@@ -82,7 +82,7 @@ if (!-e $tmpdir) {
 
 # Convert mutect rdata file into tmp file
 print "Converting mutect rda to tmpfile...\n";
-system("Rscript home/mjz1/bin/run_phylowgs/mutect_to_vcftmp.R --mutect $mut --outfile $tmpfile\n") == 0 or die "Failed to convert mutect rda file\n";
+system("Rscript /hpf/largeprojects/adam/local/bin/mutect_to_vcftmp.R --mutect $mut --outfile $tmpfile\n") == 0 or die "Failed to convert mutect rda file\n";
 
 print "Converting tmpfile to mutectvcf4.1...\n";
 

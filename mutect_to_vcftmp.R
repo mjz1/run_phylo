@@ -1,3 +1,5 @@
+#!/usr/bin/Rscript
+
 # Rscript to read in mutect data and convert into temporary tab file that can be converted into a vcf for parse_cnvs.py for phylowgs
 
 library('getopt')
