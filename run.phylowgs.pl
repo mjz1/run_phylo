@@ -116,5 +116,5 @@ print "ALL DONE!\n";
 
 
 sub help {
-	print "Usage: $0 -i SAMPLE_INFO -o OUTDIR\n";
+	print "Usage: $0 -i SAMPLE_INFO  -b BBERG_DIR -o OUTDIR\n";
 }
