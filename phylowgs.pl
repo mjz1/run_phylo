@@ -186,5 +186,5 @@ system("PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/;python2 /home/mjz1/bin/s
 print "All done!\n";
 
 sub help {
-	print "Usage: $0 -n sample_name -m mut_rda -c battenberg_subclones -o outdir -p purity [-s sex]\n";
+	print "Usage: $0 -n sample_name -m mut_rda -c battenberg_subclones -o outdir -p purity [-s sex] [-b subsamp_n]\n";
 }
