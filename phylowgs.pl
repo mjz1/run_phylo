@@ -1,6 +1,9 @@
 #!/hpf/tools/centos6/perl/5.20.1/bin/perl
 #Parse battenberg CNV output and Shlien lab mutect RDATA to create phylowgs input and run for an individual sample
 
+# To test subsampling:
+# perl /home/mjz1/bin/run_phylowgs/phylowgs.pl -n kics_32_273811_274026 -m /hpf/largeprojects/adam/projects/kics/data/wgs_ssms/0032/N_-_274026+T_-_273811/273811_annotated_filtered_clipped.rda -c /hpf/largeprojects/adam/projects/icgc_tcga_datasets/RNAmp/kics/data/battenberg_3.3.2cgp_2.2.8bberg/kics_32_273811_274026_battenberg/kics_32_273811_274026_subclones.txt -o /hpf/largeprojects/adam/matthew/test_subsamp -p 0.79553 -s male
+
 use Getopt::Long;
 use Data::Dumper;
 use List::MoreUtils qw/ uniq/;
@@ -11,9 +14,13 @@ use Moose;
 use strict;
 use warnings;
 
-my ($sample_name, $mut, $cnv, $outdir, $subsamp, $cellularity);
+my ($sample_name, $mut, $cnv, $outdir, $cellularity);
 
+# Set default options
 my $gender = "auto";
+
+my $subsamp = 10000;
+
 
 
 GetOptions(
@@ -22,7 +29,8 @@ GetOptions(
 	'c=s' => \$cnv,
 	'o=s' => \$outdir,
 	'p=s' => \$cellularity,
-	's:s' => \$gender
+	's:s' => \$gender,
+	'b:s' => \$subsamp
 	);
 
 if (!defined($sample_name)) {
@@ -49,14 +57,6 @@ if (!defined($cnv)) {
 	exit;
 }
 
-my $subsamp_flag = 0;
-
-if (defined($subsamp)) {
-	print STDOUT "-s Flag on: Subsampling $subsamp mutations from sample VCFs\n";
-	$subsamp_flag = 1;
-	sleep 3;
-}
-
 
 if (! -e ($outdir)) {
 	print "Creating output directory: $outdir\n";
@@ -74,6 +74,9 @@ my $params_json = "$outdir/$sample_name"."_params.json";
 my $top_k_trees = "$outdir/$sample_name".".top_k_trees";
 my $clonal_freq = "$outdir/$sample_name".".clonalFrequencies";
 my $tmpdir = "$outdir/tmp";
+my $nonsubsamp_variants = "$outdir/$sample_name"."_ssm_data_nonsubsamp.txt";
+my $trees_zip = "$outdir/trees.zip";
+my $posthoc_out = "$outdir/posthoc_assign.json";
 
 if (!-e $tmpdir) {
 	make_path($tmpdir);
@@ -94,10 +97,13 @@ open (my $vcfout, '>', $vcffile);
 print $vcfout "##fileformat=VCFv4.1\n##INFO=<ID=DB,Number=0,Type=Flag,Description=\"dbSNP Membership\">\n##FORMAT=<ID=TD,Number=.,Type=Integer,Description=\"Tumor allelic depths for the ref and alt alleles in the order listed\">\n##FORMAT=<ID=ND,Number=.,Type=Integer,Description=\"Normal allelic depths for the ref and alt alleles in the order listed\">\n##INFO=<ID=TR,Number=1,Type=Integer,Description=\"Approximate tumor read depth; some reads may have been filtered\">\n##INFO=<ID=NR,Number=1,Type=Integer,Description=\"Approximate normal read depth; some reads may have been filtered\">\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t$sample_name\n";
 
 #read in mutation data and print out to vcf
+# Mutation counter
+my $cnt = 0;
 open (my $mut_f, '<', $tmpfile);
 while (my $row = <$mut_f>) {
 	chomp $row;
 	next if ($row =~ /annovar/);
+	$cnt++;
 	my @data = split(/\t/, $row);
 	my $snv_id = $data[0];
 	my $chr = $data[1];
@@ -134,12 +140,16 @@ close $vcfout;
 
 # Run phylowgs cnv preparser parse_cnvs.py
 print "Parsing Battenberg CNVs...\n";
-system("module load phylowgs/bc4e098; python2 /hpf/tools/centos6/phylowgs/bc4e098/parser/parse_cnvs.py -f battenberg-smchet -c $cellularity --cnv-output $cnv_output $cnv\n") == 0 or die "Failed to parse battenberg CNVs\n";
+system("module load phylowgs/bc4e098; python2 /hpf/tools/centos6/phylowgs/bc4e098/parser/parse_cnvs.py -f battenberg-smchet -c $cellularity --cnv-output $cnv_output $cnv\n") == 0 or die "Failed to parse battenberg CNVs: $!\n";
 
 # Run phylowgs input creation script
 print "Preparing PhyloWGS input...\n";
-
-system("module load phylowgs/bc4e098;python2 /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py --cnvs $sample_name=$cnv_output --vcf-type $sample_name=mutect_tcga $sample_name=$vcffile --output-cnvs $cnvs_final --output-variants $variants_final --output-params $params_json --sex $gender") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
+if ($cnt > $subsamp) {
+	print "Subsampling $subsamp mutations from $cnt for $sample_name.\n";
+	system("module load phylowgs/bc4e098;python2 /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py -s $subsamp --cnvs $sample_name=$cnv_output --vcf-type $sample_name=mutect_tcga $sample_name=$vcffile --output-cnvs $cnvs_final --output-variants $variants_final --nonsubsampled-variants $nonsubsamp_variants --output-params $params_json --sex $gender") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
+} else {
+	system("module load phylowgs/bc4e098;python2 /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py --cnvs $sample_name=$cnv_output --vcf-type $sample_name=mutect_tcga $sample_name=$vcffile --output-cnvs $cnvs_final --output-variants $variants_final --output-params $params_json --sex $gender") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
+}
 
 # Run phylowgs
 print "Running PhyloWGS...\n";
@@ -152,8 +162,6 @@ my $muts_json = "$results_dir/$sample_name".".muts.json.gz";
 my $mutass = "$results_dir/$sample_name".".mutass.zip";
 
 mkdir $results_dir;
-my $trees_zip = "$outdir/trees.zip";
-
 print "Writing PhyloWGS results...\n";
 system("module load phylowgs/bc4e098;python2 /hpf/tools/centos6/phylowgs/bc4e098/write_results.py --include-ssm-names $sample_name $trees_zip $summ_json $muts_json $mutass") == 0 or die "Failed to write phylowgs results\n";
 
@@ -164,6 +172,16 @@ mkdir $output_dir;
 
 print "Writing PhyloWGS report...\n";
 system("PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/;python2 /home/mjz1/bin/smchet-challenge/create-smchet-report/write_report.py $summ_json $muts_json $mutass $output_dir") == 0 or die "Failed to write phylowgs report\n";
+
+# if ($cnt > $subsamp) {
+# 	print "Post hoc assigning non subsampled mutations $sample_name.\n";
+
+# 	my $ssm_ids = `cut -f1 $nonsubsamp_variants | tail -n +2 | head -n 200 | tr '\n' ' '`;
+
+# 	system("module load phylowgs/bc4e098;PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/;python2 /hpf/tools/centos6/phylowgs/bc4e098/misc/post_assign_ssm.py --cnvs $cnv_output $nonsubsamp_variants $trees_zip $ssm_ids > $posthoc_out") == 0 or die "Failed to run post_assign_ssm.py\n";
+# 	exit;
+# }
+
 
 print "All done!\n";
 

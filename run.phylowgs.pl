@@ -14,12 +14,14 @@ use warnings;
 
 
 my ($sample_info, $outdir, $bberg_dir);
+my $subsamp = 10000;
 
 
 GetOptions(
 	'i=s' => \$sample_info,
 	'o=s' => \$outdir,
-	'b=s' => \$bberg_dir
+	'b=s' => \$bberg_dir,
+	'n:s' => \$subsamp
 	);
 
 if (!defined($sample_info)) {
@@ -101,7 +103,7 @@ while (my $row = <$info>) {
 	print("Submitting $sample_name to PhyloWGS\n");
 	my $phylo = TorquePBS->new(
 		jobname => "$sample_name.phylowgs",
-		command => "phylowgs.pl -n $sample_name -m $mut -c $subclones_out -o $sample_dir -p $cellularity -s $sex",
+		command => "phylowgs.pl -n $sample_name -m $mut -c $subclones_out -o $sample_dir -p $cellularity -s $sex -b $subsamp",
 		log_dir => "$sample_dir/log",
 		root_dir => "$sample_dir",
 		script_dir => "$sample_dir/scripts",
@@ -113,6 +115,7 @@ while (my $row = <$info>) {
 		);
 	$phylo->create_shell;
 	my $phylo_job = $phylo->submit_shell;
+	exit;
 }
 
 close $info;
@@ -120,5 +123,5 @@ print "ALL DONE!\n";
 
 
 sub help {
-	print "Usage: $0 -i SAMPLE_INFO  -b BBERG_DIR -o OUTDIR\n";
+	print "Usage: $0 -i SAMPLE_INFO  -b BBERG_DIR -o OUTDIR [-n subsamp_n]\n";
 }
