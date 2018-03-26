@@ -9,19 +9,21 @@ To run the PhyloWGS pipeline you require CNV calls from Battenberg (the subclone
 ## Running
 For a single sample run
 ```{bash}
-phylowgs.pl -n sample_name -m mut_rda -c battenberg_subclones -o outdir -p purity [-s sex]
+phylowgs.pl -n sample_name -m mut_rda -c battenberg_subclones -o outdir -p purity [-s sex] [-b subsamp_n]
 
 sex in 'male' or 'female' format. 
 ```
 A wrapper to run multiple samples will work with the same manifest given to run.battenberg.pl, with a final column appended indicating the location of the sample mutect rda calls. It requires this `sample_info.txt`, the `battenberg results directory` and an `output directory`.
 
 ```{bash}
-run.phylowgs.pl -i SAMPLE_INFO -b BBERG_DIR -o OUTDIR
+run.phylowgs.pl -i SAMPLE_INFO -b BBERG_DIR -o OUTDIR [-n subsamp_n]
 
 Please provide sample info tab file:
         FORMAT:
 SAMPLE_NAME     TUMOUR_BAM      NORMAL_BAM      GENDER (XX or XY)       MUTECT_RDA
 ```
+
+The `-b` for single sample or `-n` for wrapper runs can be specified on the command line to indicate the number of mutations you want to subsample in cases where there are any mutations. This is currently set to a default value 10,000, which allows the program to complete within 100 hours. 
 
 ## Output
 Several useful outputs from this pipeline are produced.
