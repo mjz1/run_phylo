@@ -77,7 +77,7 @@ my $tmpdir = "$outdir/tmp";
 my $nonsubsamp_variants = "$outdir/$sample_name"."_ssm_data_nonsubsamp.txt";
 my $trees_zip = "$outdir/trees.zip";
 my $posthoc_out = "$outdir/posthoc_assign.json";
-my $python = "/hpf/tools/centos6/python/2.7.12/bin/python2";
+my $python = "/hpf/tools/centos6/python/2.7.11/bin/python2";
 
 if (!-e $tmpdir) {
 	make_path($tmpdir);
