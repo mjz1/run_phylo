@@ -19,7 +19,7 @@ my ($sample_name, $mut, $cnv, $outdir, $cellularity);
 # Set default options
 my $gender = "auto";
 
-my $subsamp = 10000;
+my $subsamp = 5000;
 
 
 
@@ -77,6 +77,7 @@ my $tmpdir = "$outdir/tmp";
 my $nonsubsamp_variants = "$outdir/$sample_name"."_ssm_data_nonsubsamp.txt";
 my $trees_zip = "$outdir/trees.zip";
 my $posthoc_out = "$outdir/posthoc_assign.json";
+my $python = "/hpf/tools/centos6/python/2.7.12/bin/python2";
 
 if (!-e $tmpdir) {
 	make_path($tmpdir);
@@ -140,20 +141,20 @@ close $vcfout;
 
 # Run phylowgs cnv preparser parse_cnvs.py
 print "Parsing Battenberg CNVs...\n";
-system("module load phylowgs/bc4e098; python2 /hpf/tools/centos6/phylowgs/bc4e098/parser/parse_cnvs.py -f battenberg-smchet -c $cellularity --cnv-output $cnv_output $cnv\n") == 0 or die "Failed to parse battenberg CNVs: $!\n";
+system("module load phylowgs/bc4e098; $python /hpf/tools/centos6/phylowgs/bc4e098/parser/parse_cnvs.py -f battenberg-smchet -c $cellularity --cnv-output $cnv_output $cnv\n") == 0 or die "Failed to parse battenberg CNVs: $!\n";
 
 # Run phylowgs input creation script
 print "Preparing PhyloWGS input...\n";
 if ($cnt > $subsamp) {
 	print "Subsampling $subsamp mutations from $cnt for $sample_name.\n";
-	system("module load phylowgs/bc4e098;python2 /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py -s $subsamp --cnvs $sample_name=$cnv_output --vcf-type $sample_name=mutect_tcga $sample_name=$vcffile --output-cnvs $cnvs_final --output-variants $variants_final --nonsubsampled-variants $nonsubsamp_variants --output-params $params_json --sex $gender") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
+	system("module load phylowgs/bc4e098;$python /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py -s $subsamp --cnvs $sample_name=$cnv_output --vcf-type $sample_name=mutect_tcga $sample_name=$vcffile --output-cnvs $cnvs_final --output-variants $variants_final --nonsubsampled-variants $nonsubsamp_variants --output-params $params_json --sex $gender --verbose") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
 } else {
-	system("module load phylowgs/bc4e098;python2 /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py --cnvs $sample_name=$cnv_output --vcf-type $sample_name=mutect_tcga $sample_name=$vcffile --output-cnvs $cnvs_final --output-variants $variants_final --output-params $params_json --sex $gender") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
+	system("module load phylowgs/bc4e098;$python /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py --cnvs $sample_name=$cnv_output --vcf-type $sample_name=mutect_tcga $sample_name=$vcffile --output-cnvs $cnvs_final --output-variants $variants_final --output-params $params_json --sex $gender --verbose") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
 }
 
 # Run phylowgs
 print "Running PhyloWGS...\n";
-system("module load phylowgs/bc4e098;cd $outdir/;python2 /hpf/tools/centos6/phylowgs/bc4e098/evolve.py -k $top_k_trees -f $clonal_freq -t $tmpdir $variants_final $cnvs_final\n") == 0 or die "Failed to run evolve.py\n";
+system("module load phylowgs/bc4e098;cd $outdir/;$python /hpf/tools/centos6/phylowgs/bc4e098/evolve.py -k $top_k_trees -f $clonal_freq -t $tmpdir $variants_final $cnvs_final\n") == 0 or die "Failed to run evolve.py\n";
 
 # Write results
 my $results_dir = "$outdir/results";
@@ -163,7 +164,7 @@ my $mutass = "$results_dir/$sample_name".".mutass.zip";
 
 mkdir $results_dir;
 print "Writing PhyloWGS results...\n";
-system("module load phylowgs/bc4e098;python2 /hpf/tools/centos6/phylowgs/bc4e098/write_results.py --include-ssm-names $sample_name $trees_zip $summ_json $muts_json $mutass") == 0 or die "Failed to write phylowgs results\n";
+system("module load phylowgs/bc4e098;$python /hpf/tools/centos6/phylowgs/bc4e098/write_results.py --include-ssm-names $sample_name $trees_zip $summ_json $muts_json $mutass") == 0 or die "Failed to write phylowgs results\n";
 
 
 # Write human readable reports using morris lab smchet challenge code
@@ -171,7 +172,7 @@ my $output_dir = "$outdir/outputs";
 mkdir $output_dir;
 
 print "Writing PhyloWGS report...\n";
-system("PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/;python2 /home/mjz1/bin/smchet-challenge/create-smchet-report/write_report.py $summ_json $muts_json $mutass $output_dir") == 0 or die "Failed to write phylowgs report\n";
+system("PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/;$python /home/mjz1/bin/smchet-challenge/create-smchet-report/write_report.py $summ_json $muts_json $mutass $output_dir") == 0 or die "Failed to write phylowgs report\n";
 
 # if ($cnt > $subsamp) {
 # 	print "Post hoc assigning non subsampled mutations $sample_name.\n";

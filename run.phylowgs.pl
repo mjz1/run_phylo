@@ -6,6 +6,7 @@ use Data::Dumper;
 use List::MoreUtils qw/ uniq/;
 use File::Basename;
 use Time::HiRes qw( time );
+use File::Path qw/make_path/;
 use File::Find::Rule;
 use TorquePBS;
 use Moose;
@@ -14,7 +15,7 @@ use warnings;
 
 
 my ($sample_info, $outdir, $bberg_dir);
-my $subsamp = 10000;
+my $subsamp = 5000;
 
 
 GetOptions(
@@ -95,6 +96,16 @@ while (my $row = <$info>) {
 		next;
 	}
 
+	if (!-e $sample_dir) {
+		make_path($sample_dir);
+	}
+
+	# If run not completed remove any files present in sample dir
+	if (system("touch $sample_dir/touch; rm -rf $sample_dir/*") != 0) {
+		print "Unable to delete previous run data $sample_name\n";
+		next;
+	}
+
 	# Get the cellularity value
 	my $cellularity = `cut -f1 $cellularity_out | tail -n 1`;
 	chomp $cellularity;
@@ -115,7 +126,6 @@ while (my $row = <$info>) {
 		);
 	$phylo->create_shell;
 	my $phylo_job = $phylo->submit_shell;
-	exit;
 }
 
 close $info;
