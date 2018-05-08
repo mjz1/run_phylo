@@ -25,11 +25,12 @@ my $python = "/hpf/tools/centos6/python/2.7.11/bin/python2";
 my $gender = "auto";
 
 my $subsamp = 5000;
+my $priority_bed = "/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed";
 
 # evolve.py options - currently set low for testing purposes
-my $burn = 100; # 1000
-my $mcmc = 250; # 2500
-my $metrhast = 500; # 5000
+my $burn = 100; # 1000 default
+my $mcmc = 250; # 2500 default
+my $metrhast = 500; # 5000 default
 
 GetOptions(
 	'n=s' => \$sample_name,
@@ -39,7 +40,8 @@ GetOptions(
 	'o=s' => \$outdir,
 	'p=s' => \$cellularity,
 	's:s' => \$gender,
-	'b:s' => \$subsamp
+	'b:s' => \$subsamp,
+	'i:s' => \$priority_bed
 	);
 
 
@@ -99,9 +101,6 @@ if ($multi_num eq 1) {
 	$multi_flag = 1;
 }
 
-
-# my $posthoc_out = "$outdir/posthoc_assign.json";
-
 my $tmpdir = "$outdir/tmp";
 
 if (!-e $tmpdir) {
@@ -114,68 +113,70 @@ if (!-e $tmpdir) {
 my @vcfs_parse;
 my @cnvs_parse;
 foreach my $i (0..$multi_index) {
-	print "Converting mutect rdas to vcfs: $samples[$i]\n";
-
-	my $tmpfile = "$tmpdir/$samples[$i]".".tmp";
-	my $rda = $muts[$i];
-
-	system("module unload R; module load R/3.4.4; /hpf/tools/centos6/R/3.4.4/bin/Rscript /hpf/largeprojects/adam/local/bin/mutect_to_vcftmp.R --mutect $rda --outfile $tmpfile") == 0 or die "Failed to convert mutect rda file\n";
-
-	# Convert tmp file into mutect vcf
 	my $vcffile = "$tmpdir/$samples[$i]".".vcf";
 	push (@vcfs_parse, $vcffile);
-
-	open (my $vcfout, '>', $vcffile);
-
-	# print VCF4.1 header
-	print $vcfout "##fileformat=VCFv4.1\n##INFO=<ID=DB,Number=0,Type=Flag,Description=\"dbSNP Membership\">\n##FORMAT=<ID=TD,Number=.,Type=Integer,Description=\"Tumor allelic depths for the ref and alt alleles in the order listed\">\n##FORMAT=<ID=ND,Number=.,Type=Integer,Description=\"Normal allelic depths for the ref and alt alleles in the order listed\">\n##INFO=<ID=TR,Number=1,Type=Integer,Description=\"Approximate tumor read depth; some reads may have been filtered\">\n##INFO=<ID=NR,Number=1,Type=Integer,Description=\"Approximate normal read depth; some reads may have been filtered\">\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t$sample_name\n";
-
-	#read in mutation data and print out to vcf
-	# Mutation counter
-	my $cnt = 0;
-	open (my $mut_f, '<', $tmpfile);
-	while (my $row = <$mut_f>) {
-		chomp $row;
-		next if ($row =~ /annovar/);
-		$cnt++;
-		my @data = split(/\t/, $row);
-		my $snv_id = $data[0];
-		my $chr = $data[1];
-		my $pos = $data[2];
-		my $id = ".";
-		my $ref = $data[3];
-		my $alt = $data[4];
-		my $t_ref_counts = $data[5];
-		my $t_alt_counts = $data[6];
-		my $n_ref_counts = $data[7];
-		my $n_alt_counts = $data[8];
-		my $t_depth = ($t_ref_counts + $t_alt_counts);
-		my $n_depth = ($n_ref_counts + $n_alt_counts);
-		my $qual = ".";
-		my $filter = ".";
-		my $info = "SOMATIC";
-		my $format = "TD:ND:TR:NR";
-		my $sample_data = "$t_ref_counts".","."$t_alt_counts".":"."$n_ref_counts".","."$n_alt_counts".":"."$t_depth".":"."$n_depth";
-
-		# if ($chr =~ "X") {
-		# 	$chr = 23;
-		# }
-
-		# if ($chr =~ "Y") {
-		# 	$chr = 24;
-		# }
-
-		print $vcfout "$chr\t$pos\t$id\t$ref\t$alt\t$qual\t$filter\t$info\t$format\t$sample_data\n";
-	}
-
-	close $mut_f;
-	close $vcfout;
 
 	# Parse sample CNVs using phylo's provided parser
 	my $cnv_output = "$outdir/$samples[$i]".".cnvs";
 	push (@cnvs_parse, $cnv_output);
 
+	if (-e $vcffile) {
+		print "VCF file already found for $samples[$i]...\n";
+	} else {
+		print "Converting mutect rdas to vcfs: $samples[$i]\n";
 
+		my $tmpfile = "$tmpdir/$samples[$i]".".tmp";
+		my $rda = $muts[$i];
+
+		system("module unload R; module load R/3.4.4; /hpf/tools/centos6/R/3.4.4/bin/Rscript /hpf/largeprojects/adam/local/bin/mutect_to_vcftmp.R --mutect $rda --outfile $tmpfile") == 0 or die "Failed to convert mutect rda file\n";
+
+		# Convert tmp file into mutect vcf
+		open (my $vcfout, '>', $vcffile);
+
+		# print VCF4.1 header
+		print $vcfout "##fileformat=VCFv4.1\n##INFO=<ID=DB,Number=0,Type=Flag,Description=\"dbSNP Membership\">\n##FORMAT=<ID=TD,Number=.,Type=Integer,Description=\"Tumor allelic depths for the ref and alt alleles in the order listed\">\n##FORMAT=<ID=ND,Number=.,Type=Integer,Description=\"Normal allelic depths for the ref and alt alleles in the order listed\">\n##INFO=<ID=TR,Number=1,Type=Integer,Description=\"Approximate tumor read depth; some reads may have been filtered\">\n##INFO=<ID=NR,Number=1,Type=Integer,Description=\"Approximate normal read depth; some reads may have been filtered\">\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t$sample_name\n";
+
+		#read in mutation data and print out to vcf
+		# Mutation counter
+		my $cnt = 0;
+		open (my $mut_f, '<', $tmpfile);
+		while (my $row = <$mut_f>) {
+			chomp $row;
+			next if ($row =~ /annovar/);
+			$cnt++;
+			my @data = split(/\t/, $row);
+			my $snv_id = $data[0];
+			my $chr = $data[1];
+			my $pos = $data[2];
+			my $id = ".";
+			my $ref = $data[3];
+			my $alt = $data[4];
+			my $t_ref_counts = $data[5];
+			my $t_alt_counts = $data[6];
+			my $n_ref_counts = $data[7];
+			my $n_alt_counts = $data[8];
+			my $t_depth = ($t_ref_counts + $t_alt_counts);
+			my $n_depth = ($n_ref_counts + $n_alt_counts);
+			my $qual = ".";
+			my $filter = ".";
+			my $info = "SOMATIC";
+			my $format = "TD:ND:TR:NR";
+			my $sample_data = "$t_ref_counts".","."$t_alt_counts".":"."$n_ref_counts".","."$n_alt_counts".":"."$t_depth".":"."$n_depth";
+
+			# if ($chr =~ "X") {
+			# 	$chr = 23;
+			# }
+
+			# if ($chr =~ "Y") {
+			# 	$chr = 24;
+			# }
+
+			print $vcfout "$chr\t$pos\t$id\t$ref\t$alt\t$qual\t$filter\t$info\t$format\t$sample_data\n";
+		}
+
+		close $mut_f;
+		close $vcfout;
+	}
 
 	### FIX ME ### --- parse cnvs has integer error
 	if (-e $cnv_output) {
@@ -199,6 +200,9 @@ if (-e $variants_final) {
 	print "SSM data located: $variants_final...Skipping...\n";
 } else {
 	print "Preparing PhyloWGS input...\n";
+
+	# Create priority SSMs file (newline seperated <chr>_<locus>)
+	
 
 	# Construct the command
 	my @cnv_arg;
@@ -258,17 +262,30 @@ if ($multi_flag == 0) {
 	}
 }
 
+# Step 4: Run post-hoc assignment
+# First check for non-subsampled variants
+my $count = `wc -l < $nonsubsamp_variants`;
+die "wc failed: $?" if $?;
+chomp($count);
 
-# Check for non-subsampled variants and perform post-hoc assignment
-# if ($cnt > $subsamp) {
-# 	print "Post hoc assigning non subsampled mutations $sample_name.\n";
+if ($count <= 1) {
+	print "No subsampling performed. No post-hoc assignment necessary.\n";
+} elsif ($count > 1) {
+	print "$count additional mutations to be used for post-hoc assignment...\n"
+}
 
-# 	my $ssm_ids = `cut -f1 $nonsubsamp_variants | tail -n +2 | head -n 200 | tr '\n' ' '`;
+# Get the SSM ids for post hoc assignment
+my $ssm_ids = `cut -f1 $nonsubsamp_variants | tail -n +2 | head -n 1 | tr '\n' ' '`;
 
-# 	system("module load phylowgs/bc4e098;PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/;python2 /hpf/tools/centos6/phylowgs/bc4e098/misc/post_assign_ssm.py --cnvs $cnv_output $nonsubsamp_variants $trees_zip $ssm_ids > $posthoc_out") == 0 or die "Failed to run post_assign_ssm.py\n";
-# 	exit;
-# }
+# print "$ssm_ids\n";
 
+foreach my $i (0..$multi_index) {
+	my $posthoc_out = "$results_dir/$samples[$i].posthoc.json";
+	system("module load phylowgs/bc4e098;PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/;python2 /hpf/tools/centos6/phylowgs/bc4e098/misc/post_assign_ssm.py --cnvs $cnvs_parse[$i] $nonsubsamp_variants $trees_zip $ssm_ids > $posthoc_out") == 0 or die "Failed to run post_assign_ssm.py\n";
+}
+
+# Step 5: Parse JSON files and produce final outputs
+###
 
 print "All done!\n";
 

@@ -8,7 +8,7 @@
 # Battenberg dir: 
 # /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09
 
-# ~/bin/run_phylowgs/run.phylowgs.pl -i /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/multisample.test.input.tab -b /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09 -o /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/ -n 100
+# ~/bin/run_phylowgs/run.phylowgs.pl -i /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/multisample.test.input.tab -b /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09 -o /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_3/ -n 100
 
 
 use Getopt::Long;
@@ -26,13 +26,15 @@ use warnings;
 
 my ($sample_info, $outdir, $bberg_dir);
 my $subsamp = 5000;
+my $priority_bed = "/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed";
 
 
 GetOptions(
 	'i=s' => \$sample_info,
 	'o=s' => \$outdir,
 	'b=s' => \$bberg_dir,
-	'n:s' => \$subsamp
+	'n:s' => \$subsamp,
+	'p:s' => \$priority_bed
 	);
 
 if (!defined($sample_info)) {
@@ -145,7 +147,7 @@ for my $mode (sort keys %sample_hash) {
 			my $cellularity = $params[2];
 			my $sex = $params[3];
 
-			my $cmd = "~/bin/run_phylowgs/phylowgs.pl -r $sample -n $sample -m $mut -c $subclones_out -o $sample_dir -p $cellularity -s $sex -b $subsamp";
+			my $cmd = "~/bin/run_phylowgs/phylowgs.pl -r $sample -n $sample -m $mut -c $subclones_out -o $sample_dir -p $cellularity -s $sex -b $subsamp -i $priority_bed";
 
 			# If run not completed remove any files present in sample dir
 			if (system("touch $sample_dir/touch; rm -rf $sample_dir/*") != 0) {
@@ -196,7 +198,7 @@ for my $mode (sort keys %sample_hash) {
 			}
 
 			# Construct submission command
-			my $cmd = join(" ", "~/bin/run_phylowgs/phylowgs.pl -r $multi_sample -n", join(",", @samples_a), "-m", join(",", @muts_a), "-c", join(",", @subclones_out_a), "-o $sample_dir", "-p", join(",", @cellularity_a), "-s", $sex, "-b $subsamp");
+			my $cmd = join(" ", "~/bin/run_phylowgs/phylowgs.pl -r $multi_sample -n", join(",", @samples_a), "-m", join(",", @muts_a), "-c", join(",", @subclones_out_a), "-o $sample_dir", "-p", join(",", @cellularity_a), "-s", $sex, "-b $subsamp -i $priority_bed");
 
 			# If run not completed remove any files present in sample dir
 			if (system("touch $sample_dir/touch; rm -rf $sample_dir/*") != 0) {
