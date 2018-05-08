@@ -26,6 +26,11 @@ my $gender = "auto";
 
 my $subsamp = 5000;
 
+# evolve.py options - currently set low for testing purposes
+my $burn = 100; # 1000
+my $mcmc = 250; # 2500
+my $metrhast = 500; # 5000
+
 GetOptions(
 	'n=s' => \$sample_name,
 	'r=s' => \$run_name,
@@ -219,7 +224,7 @@ if (-e $top_k_trees) {
 	print "PhyloWGS already run...Skipping...\n";
 } else {
 	print "Running PhyloWGS...\n";
-	system("module unload python; module load phylowgs/bc4e098;cd $outdir/;$python /hpf/tools/centos6/phylowgs/bc4e098/evolve.py -k $top_k_trees -f $clonal_freq --params $params_json -t $tmpdir $variants_final $cnvs_final\n") == 0 or die "Failed to run evolve.py\n";
+	system("module unload python; module load phylowgs/bc4e098;cd $outdir/;$python /hpf/tools/centos6/phylowgs/bc4e098/evolve.py -k $top_k_trees -f $clonal_freq --params $params_json -B $burn -s $mcmc -i $metrhast -t $tmpdir $variants_final $cnvs_final\n") == 0 or die "Failed to run evolve.py\n";
 }
 
 

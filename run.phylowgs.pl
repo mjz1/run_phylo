@@ -8,10 +8,7 @@
 # Battenberg dir: 
 # /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09
 
-# ~/bin/run_phylowgs/run.phylowgs.pl -i /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/multisample.test.input.tab -b /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09 -o /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/ -n 500
-
-# Post hoc assign test
-# ~/bin/run_phylowgs/run.phylowgs.pl -i /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/ -b /hpf/largeprojects/adam/projects/icgc_tcga_datasets/RNAmp/kics/data/cnvs -o /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/ -n 500
+# ~/bin/run_phylowgs/run.phylowgs.pl -i /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/multisample.test.input.tab -b /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09 -o /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/ -n 100
 
 
 use Getopt::Long;
@@ -158,7 +155,7 @@ for my $mode (sort keys %sample_hash) {
 
 
 			# Submit to cluster
-			print("Submitting $sample to PhyloWGS\n");
+			print("Submitting $sample to PhyloWGS in single-sample mode\n");
 			my $phylo = TorquePBS->new(
 				jobname => "$sample.phylowgs",
 				command => "$cmd",
@@ -176,8 +173,6 @@ for my $mode (sort keys %sample_hash) {
 		}
 	} elsif ($mode =~ /multi/) {
 		foreach my $multi_sample (sort keys %{$sample_hash{'multi'}}) {
-			print "$multi_sample\n";
-
 			# Define output directory for the multisample run
 			my $sample_dir = "$outdir/$multi_sample"."_phylowgs.multi";
 
