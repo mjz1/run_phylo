@@ -193,6 +193,7 @@ my $cnvs_final = "$outdir/$run_name"."_cnv_data.txt";
 my $variants_final = "$outdir/$run_name"."_ssm_data.txt";
 my $nonsubsamp_variants = "$outdir/$run_name"."_ssm_data_nonsubsamp.txt";
 my $params_json = "$outdir/$run_name"."_params.json";
+my $priority_ssm_file = "$tmpdir/$run_name"."_priority_ssms.txt";
 
 
 # Run phylowgs input creation script
@@ -202,7 +203,9 @@ if (-e $variants_final) {
 	print "Preparing PhyloWGS input...\n";
 
 	# Create priority SSMs file (newline seperated <chr>_<locus>)
-	
+	foreach my $i (0..$multi_index) {
+		system("/hpf/tools/centos6/bedtools/2.21.0/bin/bedtools intersect -a $vcfs_parse[$i] -b $priority_bed | cut -f1,2 | tr -s '\t' '_' >> $priority_ssm_file") == 0 or die "Failed to create priority ssm file: $!\n";
+	}
 
 	# Construct the command
 	my @cnv_arg;
@@ -214,8 +217,8 @@ if (-e $variants_final) {
 		push(@vcf_arg, join("=", $samples[$i], $vcfs_parse[$i]));
 	}
 
-	my $create_phylo_inputs_cmd = join(" ", "module unload python; module load phylowgs/bc4e098;$python /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py -s $subsamp", join(" ", @cnv_arg, @vcftype_arg, @vcf_arg), "--output-cnvs $cnvs_final --output-variants $variants_final --nonsubsampled-variants $nonsubsamp_variants --output-params $params_json --sex $gender --verbose");
-
+	my $create_phylo_inputs_cmd = join(" ", "module unload python; module load phylowgs/bc4e098;$python /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py -s $subsamp", join(" ", @cnv_arg, @vcftype_arg, @vcf_arg), "--output-cnvs $cnvs_final --output-variants $variants_final --nonsubsampled-variants $nonsubsamp_variants --output-params $params_json --sex $gender -P $priority_ssm_file --verbose");
+	
 	system("$create_phylo_inputs_cmd") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
 }
 
