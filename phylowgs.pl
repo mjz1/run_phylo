@@ -28,9 +28,9 @@ my $subsamp = 5000;
 my $priority_bed = "/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed";
 
 # evolve.py options - currently set low for testing purposes
-my $burn = 100; # 1000 default
-my $mcmc = 250; # 2500 default
-my $metrhast = 500; # 5000 default
+my $burn = 1000; # 1000 default
+my $mcmc = 2500; # 2500 default
+my $metrhast = 5000; # 5000 default
 
 GetOptions(
 	'n=s' => \$sample_name,
