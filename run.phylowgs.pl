@@ -149,11 +149,12 @@ for my $mode (sort keys %sample_hash) {
 
 			my $cmd = "~/bin/run_phylowgs/phylowgs.pl -r $sample -n $sample -m $mut -c $subclones_out -o $sample_dir -p $cellularity -s $sex -b $subsamp -i $priority_bed";
 
-			# If run not completed remove any files present in sample dir
-			if (system("touch $sample_dir/touch; rm -rf $sample_dir/*") != 0) {
-				print "Unable to delete previous run data $sample\n";
-				next;
-			}
+			# Below is removed -- not fully tested but previously run samples should resume
+			# # If run not completed remove any files present in sample dir
+			# if (system("touch $sample_dir/touch; rm -rf $sample_dir/*") != 0) {
+			# 	print "Unable to delete previous run data $sample\n";
+			# 	next;
+			# }
 
 
 			# Submit to cluster
@@ -200,11 +201,11 @@ for my $mode (sort keys %sample_hash) {
 			# Construct submission command
 			my $cmd = join(" ", "~/bin/run_phylowgs/phylowgs.pl -r $multi_sample -n", join(",", @samples_a), "-m", join(",", @muts_a), "-c", join(",", @subclones_out_a), "-o $sample_dir", "-p", join(",", @cellularity_a), "-s", $sex, "-b $subsamp -i $priority_bed");
 
-			# If run not completed remove any files present in sample dir
-			if (system("touch $sample_dir/touch; rm -rf $sample_dir/*") != 0) {
-				print "Unable to delete previous run data $multi_sample\n";
-				next;
-			}
+			# # If run not completed remove any files present in sample dir
+			# if (system("touch $sample_dir/touch; rm -rf $sample_dir/*") != 0) {
+			# 	print "Unable to delete previous run data $multi_sample\n";
+			# 	next;
+			# }
 
 
 			# Submit to cluster
