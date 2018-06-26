@@ -7,13 +7,26 @@ https://github.com/morrislab/phylowgs
 To run the PhyloWGS pipeline you require CNV calls from Battenberg (the subclones.txt output) and mutation calls from the lab ssm pipeline.
 
 ## Running
-### Single sample mode
-For a single sample run: 
-
 ```{bash}
-phylowgs.pl -n sample_name -m mut_rda -c battenberg_subclones -o outdir -p purity [-s sex] [-b subsamp_n]
+phylowgs.pl [options]
 
-sex in 'male' or 'female' format. 
+      Required parameters:
+        -n                          Sample name
+        -r                          Run name
+        -m                          Mutect RDA file
+        -c                          Battenberg cnv file
+        -o                          Output directory
+        -p                          Sample purity
+
+       Optional parameters:
+        -gender                     Patient gender
+        -subsamp                    Number of subsampled mutations [5000]
+        -i                          Priority SSMs bed file [/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed]
+        -regions                    Which regions to use variants from. [normal_and_abnormal_cn]
+        -burn                       Number of burnin samples [1000]
+        -mcmc                       Number of mcmc iterations [2500]
+        -metrhast                   Number of MH iterations [5000]
+        -num_chains                 Number of chains for mulevolve.py [10]
 ```
 
 ### Multi-sample mode
@@ -21,23 +34,40 @@ PhyloWGS has a multi-sample mode where linked samples (e.g metastatic or multi-r
 To run multiple samples, provide comma seperated sample names/files where shown below. Additionally use the `-r` option to specify the merged sample name:
 
 ```{bash}
-phylowgs.pl -n {sample_name.1,sample_name.2...sample_name.x} -m {mut_rda.1,mut_rda.2...mut_rda.x} -c {battenberg_subclones.1,battenberg_subclones.2...battenberg_subclones.x} -o outdir -p {purity.1,purity.2...purity.x} [-s sex] [-b subsamp_n]
+phylowgs.pl -n {s1,s2,s3} -m {m1,m2,m3} -c {c1,c2,c3} -p {p1,p2,p3} -r run_name [OPTIONS]
+```
 
-sex in 'male' or 'female' format. 
+For full options list: 
+```{bash}
+phylowgs.pl -man
 ```
 
 ### Convenience wrapper
 A wrapper to run multiple samples will work with the same manifest given to run.battenberg.pl, with at least one additional column appended indicating the location of the sample mutect rda calls. It requires this `sample_info.txt`, the `battenberg results directory` and an `output directory`. A final column can be used to indicate linked samples, which will automatically be run in multi-sample mode.
 
 ```{bash}
-run.phylowgs.pl -i SAMPLE_INFO -b BBERG_DIR -o OUTDIR [-n subsamp_n]
+    run.phylowgs.pl [options]
 
-Please provide sample info tab file:
-        FORMAT:
-SAMPLE_NAME     TUMOUR_BAM      NORMAL_BAM      GENDER (XX or XY)       MUTECT_RDA        MULTI_SAMPLE
+      Required parameters:
+        -i                          Sample info tab file
+        -o                          Output directory
+        -b                          Battenberg output directory
+
+       Optional parameters:
+        -subsamp                    Number of subsampled mutations [5000]
+        -p                          Priority SSMs bed file [/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed]
+        -regions                    Which regions to use variants from. [normal_and_abnormal_cn]
+        -burn                       Number of burnin samples [1000]
+        -mcmc                       Number of mcmc iterations [2500]
+        -metrhast                   Number of MH iterations [5000]
+        -num_chains                 Number of chains for mulevolve.py [10]
 ```
 
-The `-b` for single sample or `-n` for wrapper runs can be specified on the command line to indicate the number of mutations you want to subsample in cases where there are any mutations. This is currently set to a default value 5,000, which allows the program to complete within 100 hours. 
+For full options list: 
+```{bash}
+run.phylowgs.pl -man
+```
+
 
 ## Output
 Several outputs from this pipeline are produced for single sample mode (multi-sample in progress).
