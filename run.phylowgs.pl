@@ -335,6 +335,10 @@ Number of MH iterations (default 5000)
 
 Number of chains for B<multievolve.py> (default 10)
 
+=item B<-subsamp>
+
+Number of subsampled mutations (default 5000)
+
 =back
 
 =head1 DESCRIPTION
