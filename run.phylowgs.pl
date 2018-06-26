@@ -8,10 +8,11 @@
 # Battenberg dir: 
 # /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09
 
-# ~/bin/run_phylowgs/run.phylowgs.pl -i /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/multisample.test.input.tab -b /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09 -o /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_3/ -n 100
+# perl ~/bin/run_phylowgs/run.phylowgs.pl -i /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_2/multisample.test.input.tab -b /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09 -o /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_3/
 
 
 use Getopt::Long;
+use Pod::Usage;
 use Data::Dumper;
 use List::MoreUtils qw/ uniq/;
 use File::Basename;
@@ -26,32 +27,59 @@ use warnings;
 
 my ($sample_info, $outdir, $bberg_dir);
 my $subsamp = 5000;
+
+# Opt help and manual
+my ($opt_help, $opt_man);
+
+# multievolve.py options
+my $burn = 1000; # 1000 default
+my $mcmc = 2500; # 2500 default
+my $metrhast = 5000; # 5000 default
+my $num_chains = 10;
+
+# June 1 master phylowgs commit: phylowgs/262325b
+my $phylo_ver = "phylowgs/262325b/";
+
 my $priority_bed = "/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed";
+my $regions = "normal_and_abnormal_cn";
 
 
 GetOptions(
 	'i=s' => \$sample_info,
 	'o=s' => \$outdir,
 	'b=s' => \$bberg_dir,
-	'n:s' => \$subsamp,
-	'p:s' => \$priority_bed
-	);
+	'subsamp:s' => \$subsamp,
+	'p:s' => \$priority_bed,
+	'num_chains:s' => \$num_chains,
+	'regions:s' => \$regions,
+	'burn:s' => \$burn,
+	'mcmc:s' => \$mcmc,
+	'metrhast:s' => \$metrhast,
+	'help!' => \$opt_help,
+	'man!' => \$opt_man
+	) or pod2usage(-verbose => 1) && exit;
+pod2usage(-verbose => 1) && exit if defined $opt_help;
+pod2usage(-verbose => 2) && exit if defined $opt_man;
+
+
+# Assign memory per thread
+my $memuse = 6 * $num_chains;
 
 if (!defined($sample_info)) {
 	print "Please provide sample info tab file:\n\tFORMAT:\nSAMPLE_NAME\tTUMOUR_BAM\tNORMAL_BAM\tGENDER (XX or XY)\tMUTECT_RDA\tMULTI_SAMPLE_FLAG\n";
-	help();
+	pod2usage(-verbose => 1) && exit;
 	exit;
 }
 
 if (!defined($outdir)) {
 	print "Please provide output directory\n";
-	help();
+	pod2usage(-verbose => 1) && exit;
 	exit;
 }
 
 if (!defined($bberg_dir)) {
 	print "Please provide battenberg directory\n";
-	help();
+	pod2usage(-verbose => 1) && exit;
 	exit;
 }
 
@@ -147,7 +175,7 @@ for my $mode (sort keys %sample_hash) {
 			my $cellularity = $params[2];
 			my $sex = $params[3];
 
-			my $cmd = "phylowgs.pl -r $sample -n $sample -m $mut -c $subclones_out -o $sample_dir -p $cellularity -s $sex -b $subsamp -i $priority_bed";
+			my $cmd = "phylowgs.pl -r $sample -n $sample -m $mut -c $subclones_out -o $sample_dir -p $cellularity --gender $sex --subsamp $subsamp -i $priority_bed --num_chains $num_chains --regions $regions --burn $burn --mcmc $mcmc --metrhast $metrhast";
 
 			# Below is removed -- not fully tested but previously run samples should resume
 			# # If run not completed remove any files present in sample dir
@@ -165,8 +193,8 @@ for my $mode (sort keys %sample_hash) {
 				log_dir => "$sample_dir/log",
 				root_dir => "$sample_dir",
 				script_dir => "$sample_dir/scripts",
-				memory => 32,
-				parallel => 1,
+				memory => $memuse,
+				parallel => $num_chains,
 				template_dir => '/hpf/largeprojects/adam/local/lib/perl5/auto/share/dist/TorquePBS/templates/',
 				template => 'submit_to_pbs.template',
 				queue => 'long'
@@ -199,7 +227,7 @@ for my $mode (sort keys %sample_hash) {
 			}
 
 			# Construct submission command
-			my $cmd = join(" ", "phylowgs.pl -r $multi_sample -n", join(",", @samples_a), "-m", join(",", @muts_a), "-c", join(",", @subclones_out_a), "-o $sample_dir", "-p", join(",", @cellularity_a), "-s", $sex, "-b $subsamp -i $priority_bed");
+			my $cmd = join(" ", "phylowgs.pl -r $multi_sample -n", join(",", @samples_a), "-m", join(",", @muts_a), "-c", join(",", @subclones_out_a), "-o $sample_dir", "-p", join(",", @cellularity_a), "--gender", $sex, "--subsamp $subsamp -i $priority_bed --regions $regions --burn $burn --mcmc $mcmc --metrhast $metrhast --num_chains $num_chains");
 
 			# # If run not completed remove any files present in sample dir
 			# if (system("touch $sample_dir/touch; rm -rf $sample_dir/*") != 0) {
@@ -216,8 +244,8 @@ for my $mode (sort keys %sample_hash) {
 				log_dir => "$sample_dir/log",
 				root_dir => "$sample_dir",
 				script_dir => "$sample_dir/scripts",
-				memory => 32,
-				parallel => 1,
+				memory => $memuse,
+				parallel => $num_chains,
 				template_dir => '/hpf/largeprojects/adam/local/lib/perl5/auto/share/dist/TorquePBS/templates/',
 				template => 'submit_to_pbs.template',
 				queue => 'long'
@@ -243,7 +271,76 @@ for my $mode (sort keys %sample_hash) {
 
 print "ALL DONE!\n";
 
+__END__
 
-sub help {
-	print "Usage: $0 -i SAMPLE_INFO  -b BBERG_DIR -o OUTDIR [-n subsamp_n]\n";
-}
+=head1 NAME
+
+run.phylowgs.pl - Perform phylogenetic reconstruction from tumour sequencing data. Convenience wrapper for submitting multiple samples
+
+=head1 SYNOPSIS
+
+run.phylowgs.pl [options]
+
+  Required parameters:
+    -i                          Sample info tab file
+    -o                          Output directory
+    -b                          Battenberg output directory
+
+   Optional parameters:
+    -subsamp                    Number of subsampled mutations [5000]
+    -p                          Priority SSMs bed file [/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed]
+    -regions                    Which regions to use variants from. [normal_and_abnormal_cn]
+    -burn                       Number of burnin samples [1000]
+    -mcmc                       Number of mcmc iterations [2500]
+    -metrhast                   Number of MH iterations [5000]
+    -num_chains                 Number of chains for mulevolve.py [10]
+
+   Other:
+    -help     -h  Brief help message.
+    -man      -m  Full documentation.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-i>
+
+Sample info tab file with the following columns: [SAMPLE_NAME,TUMOUR_BAM,NORMAL_BAM,GENDER (XX or XY),MUTECT_RDA,MULTI_SAMPLE_ID]
+
+=item B<-o>
+
+Directory to write output to.
+
+=item B<-b>
+
+Folder containing battenberg results for listed samples
+
+=item B<-regions>
+
+Which regions to use variants from. Allowable values are {normal_cn,normal_and_abnormal_cn,all}. (default: normal_and_abnormal_cn) 
+                        
+=item B<-burn>
+
+Number of burnin samples (default 1000)
+
+=item B<-mcmc>
+
+Number of mcmc samples (default 2500)
+
+=item B<-metrhast>
+
+Number of MH iterations (default 5000)
+
+=item B<-num_chains>
+
+Number of chains for B<multievolve.py> (default 10)
+
+=back
+
+=head1 DESCRIPTION
+
+B<run.phylowgs.pl> will attempt to run all steps of the phylowgs pipeline, starting with SSM and CNV calls to producing JSON results files.
+
+Automatic wrapper for B<phylowgs.pl> for use with a sample tab file.
+
+=cut

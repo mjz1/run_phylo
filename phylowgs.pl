@@ -5,9 +5,10 @@
 
 
 # To test subsampling:
-# perl /home/mjz1/bin/run_phylowgs/phylowgs.pl -n kics_32_273811_274026 -m /hpf/largeprojects/adam/projects/kics/data/wgs_ssms/0032/N_-_274026+T_-_273811/273811_annotated_filtered_clipped.rda -c /hpf/largeprojects/adam/projects/icgc_tcga_datasets/RNAmp/kics/data/battenberg_3.3.2cgp_2.2.8bberg/kics_32_273811_274026_battenberg/kics_32_273811_274026_subclones.txt -o /hpf/largeprojects/adam/matthew/test_subsamp -p 0.79553 -s male
+# perl /home/mjz1/bin/run_phylowgs/phylowgs.pl -n kics_32_273811_274026 -m /hpf/largeprojects/adam/projects/kics/data/wgs_ssms/0032/N_-_274026+T_-_273811/273811_annotated_filtered_clipped.rda -c /hpf/largeprojects/adam/projects/icgc_tcga_datasets/RNAmp/kics/data/battenberg_3.3.2cgp_2.2.8bberg/kics_32_273811_274026_battenberg/kics_32_273811_274026_subclones.txt -o /hpf/largeprojects/adam/matthew/test_subsamp -p 0.79553 --gender male --regions normal_and_abnormal_cn -r test --subsamp 100 --burn 5 --mcmc 5 --metrhast 50 --num_chains 10
 
 use Getopt::Long;
+use Pod::Usage;
 use Data::Dumper;
 use List::MoreUtils qw/ uniq/;
 use File::Basename;
@@ -19,18 +20,26 @@ use warnings;
 
 my ($sample_name, $mut, $cnv, $outdir, $cellularity, $run_name);
 
+# Opt help and manual
+my ($opt_help, $opt_man);
+
 my $python = "/hpf/tools/centos6/python/2.7.11/bin/python2";
+
+# June 1 master phylowgs commit: phylowgs/262325b
+my $phylo_ver = "phylowgs/262325b/";
 
 # Set default options
 my $gender = "auto";
 
 my $subsamp = 5000;
 my $priority_bed = "/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed";
+my $regions = "normal_and_abnormal_cn";
 
-# evolve.py options - currently set low for testing purposes
+# multievolve.py options
 my $burn = 1000; # 1000 default
 my $mcmc = 2500; # 2500 default
 my $metrhast = 5000; # 5000 default
+my $num_chains = 10;
 
 GetOptions(
 	'n=s' => \$sample_name,
@@ -39,39 +48,53 @@ GetOptions(
 	'c=s' => \$cnv,
 	'o=s' => \$outdir,
 	'p=s' => \$cellularity,
-	's:s' => \$gender,
-	'b:s' => \$subsamp,
-	'i:s' => \$priority_bed
-	);
+	'gender:s' => \$gender,
+	'subsamp:s' => \$subsamp,
+	'i:s' => \$priority_bed,
+	'regions:s' => \$regions,
+	'burn:s' => \$burn,
+	'mcmc:s' => \$mcmc,
+	'metrhast:s' => \$metrhast,
+	'num_chains:s' => \$num_chains,
+	'help!' => \$opt_help,
+	'man!' => \$opt_man
+	) or pod2usage(-verbose => 1) && exit;
+pod2usage(-verbose => 1) && exit if defined $opt_help;
+pod2usage(-verbose => 2) && exit if defined $opt_man;
 
 
 if (!defined($sample_name)) {
 	print "Please provide sample_name\n";
-	help();
-	exit;
+	pod2usage(-verbose => 1) && exit
 }
 
 if (!defined($mut)) {
 	print "Please provide mutect rdata frame\n";
-	help();
+	pod2usage(-verbose => 1) && exit;
 	exit;
 }
 
 if (!defined($run_name)) {
 	print "Please provide a run name\n";
-	help();
+	pod2usage(-verbose => 1) && exit;
 	exit;
 }
 
 if (!defined($outdir)) {
 	print "Please provide output directory\n";
-	help();
+	pod2usage(-verbose => 1) && exit;
 	exit;
 }
 
 if (!defined($cnv)) {
 	print "Please provide cnv data \n";
-	help();
+	pod2usage(-verbose => 1) && exit;
+	exit;
+}
+
+if ($regions !~ /normal_cn|normal_and_abnormal_cn|all/) {
+	print "Regions option invalid: $regions.\nAccepted values: {normal_cn,normal_and_abnormal_cn,all}\n";
+	pod2usage(-verbose => 1) && exit;
 	exit;
 }
 
@@ -182,8 +205,8 @@ foreach my $i (0..$multi_index) {
 	if (-e $cnv_output) {
 		print "Parsed CNVs already detected: $samples[$i]...\n";
 	} else {
-		print "Parsing battenberg CNVs: $samples[$i];\n";
-		system("module unload python;module load phylowgs/bc4e098; $python /hpf/tools/centos6/phylowgs/bc4e098/parser/parse_cnvs.py -f battenberg-smchet -c $cellularitys[$i] --cnv-output $cnv_output $cnvs[$i]\n") == 0 or die "Failed to parse battenberg CNVs: $!\n";
+		print "Parsing battenberg CNVs: $samples[$i]\n";
+		system("module unload python;module load $phylo_ver; $python /hpf/tools/centos6/$phylo_ver/parser/parse_cnvs.py -f battenberg-smchet -c $cellularitys[$i] --cnv-output $cnv_output $cnvs[$i]\n") == 0 or die "Failed to parse battenberg CNVs: $!\n";
 	}
 
 }
@@ -217,21 +240,20 @@ if (-e $variants_final) {
 		push(@vcf_arg, join("=", $samples[$i], $vcfs_parse[$i]));
 	}
 
-	my $create_phylo_inputs_cmd = join(" ", "module unload python; module load phylowgs/bc4e098;$python /hpf/tools/centos6/phylowgs/bc4e098/parser/create_phylowgs_inputs.py -s $subsamp", join(" ", @cnv_arg, @vcftype_arg, @vcf_arg), "--output-cnvs $cnvs_final --output-variants $variants_final --nonsubsampled-variants $nonsubsamp_variants --output-params $params_json --sex $gender -P $priority_ssm_file --verbose");
+	my $create_phylo_inputs_cmd = join(" ", "module unload python; module load $phylo_ver;$python /hpf/tools/centos6/$phylo_ver/parser/create_phylowgs_inputs.py -s $subsamp", join(" ", @cnv_arg, @vcftype_arg, @vcf_arg), "--output-cnvs $cnvs_final --output-variants $variants_final --nonsubsampled-variants $nonsubsamp_variants --output-params $params_json --sex $gender -P $priority_ssm_file --regions $regions --verbose");
 	
 	system("$create_phylo_inputs_cmd") == 0 or die "Failed to run create_phylowgs_inputs.py\n";
 }
 
-
 # Step 3: Run PhyloWGS (evolve.py)
-my $top_k_trees = "$outdir/$run_name".".top_k_trees";
-my $clonal_freq = "$tmpdir/$run_name".".clonalFrequencies";
+my $trees_zip = "$outdir/chains/trees.zip";
+# my $clonal_freq = "$tmpdir/$run_name".".clonalFrequencies";
 
-if (-e $top_k_trees) {
+if (-e $trees_zip) {
 	print "PhyloWGS already run...Skipping...\n";
 } else {
 	print "Running PhyloWGS...\n";
-	system("module unload python; module load phylowgs/bc4e098;cd $outdir/;$python /hpf/tools/centos6/phylowgs/bc4e098/evolve.py -k $top_k_trees -f $clonal_freq --params $params_json -B $burn -s $mcmc -i $metrhast -t $tmpdir $variants_final $cnvs_final\n") == 0 or die "Failed to run evolve.py\n";
+	system("module unload python; module load $phylo_ver;cd $outdir/;$python /hpf/tools/centos6/$phylo_ver/multievolve.py --num-chains $num_chains --params $params_json -B $burn -s $mcmc -i $metrhast -t $tmpdir --ssms $variants_final --cnvs $cnvs_final") == 0 or die "Failed to run evolve.py\n";
 }
 
 
@@ -240,14 +262,13 @@ my $results_dir = "$outdir/results";
 my $summ_json = "$results_dir/$run_name".".summ.json.gz";
 my $muts_json = "$results_dir/$run_name".".muts.json.gz";
 my $mutass = "$results_dir/$run_name".".mutass.zip";
-my $trees_zip = "$outdir/trees.zip";
 
 mkdir $results_dir;
 if (-e $mutass) {
 	print "PhyloWGS results already found...Skipping...\n";
 } else {
 	print "Writing PhyloWGS results...\n";
-	system("module unload python; module load phylowgs/bc4e098;$python /hpf/tools/centos6/phylowgs/bc4e098/write_results.py --include-ssm-names $sample_name $trees_zip $summ_json $muts_json $mutass") == 0 or die "Failed to write phylowgs results\n";
+	system("module unload python; module load $phylo_ver;$python /hpf/tools/centos6/$phylo_ver/write_results.py --include-ssm-names $run_name $trees_zip $summ_json $muts_json $mutass") == 0 or die "Failed to write phylowgs results\n";
 }
 
 # # Write human readable reports using morris lab smchet challenge code
@@ -261,37 +282,130 @@ if ($multi_flag == 0) {
 		print "Output already written...ALL DONE...\n";
 	} else {
 		print "Writing PhyloWGS report...\n";
-		system("module purge; module load phylowgs/bc4e098; PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/:/hpf/tools/centos6/python/2.7.11/lib/python2.7; $python /home/mjz1/bin/smchet-challenge/create-smchet-report/write_report.py $summ_json $muts_json $mutass $output_dir") == 0 or die "Failed to write phylowgs report\n";
+		system("module purge; module load $phylo_ver; PYTHONPATH=/hpf/tools/centos6/$phylo_ver:/hpf/tools/centos6/python/2.7.11/lib/python2.7; $python /home/mjz1/bin/smchet-challenge/create-smchet-report/write_report.py $summ_json $muts_json $mutass $output_dir") == 0 or die "Failed to write phylowgs report\n";
 	}
 }
 
-# Step 4: Run post-hoc assignment
+# Step 4: Run post-hoc assignment CURRENTLY DISABLED
 # First check for non-subsampled variants
-my $count = `wc -l < $nonsubsamp_variants`;
-die "wc failed: $?" if $?;
-chomp($count);
+# my $count = `wc -l < $nonsubsamp_variants`;
+# die "wc failed: $?" if $?;
+# chomp($count);
 
-if ($count <= 1) {
-	print "No subsampling performed. No post-hoc assignment necessary.\n";
-} elsif ($count > 1) {
-	print "$count additional mutations to be used for post-hoc assignment...\n"
-}
+# if ($count <= 1) {
+# 	print "No subsampling performed. No post-hoc assignment necessary.\n";
+# } elsif ($count > 1) {
+# 	print "$count additional mutations to be used for post-hoc assignment...\n"
+# }
 
-# Get the SSM ids for post hoc assignment
-my $ssm_ids = `cut -f1 $nonsubsamp_variants | tail -n +2 | head -n 1 | tr '\n' ' '`;
+# # Get the SSM ids for post hoc assignment
+# my $ssm_ids = `cut -f1 $nonsubsamp_variants | tail -n +2 | head -n 1 | tr '\n' ' '`;
 
-# print "$ssm_ids\n";
+# # print "$ssm_ids\n";
 
-foreach my $i (0..$multi_index) {
-	my $posthoc_out = "$results_dir/$samples[$i].posthoc.json";
-	system("module load phylowgs/bc4e098;PYTHONPATH=/hpf/tools/centos6/phylowgs/bc4e098/;python2 /hpf/tools/centos6/phylowgs/bc4e098/misc/post_assign_ssm.py --cnvs $cnvs_parse[$i] $nonsubsamp_variants $trees_zip $ssm_ids > $posthoc_out") == 0 or die "Failed to run post_assign_ssm.py\n";
-}
+# foreach my $i (0..$multi_index) {
+# 	my $posthoc_out = "$results_dir/$samples[$i].posthoc.json";
+# 	system("module load phylowgs/bc4e098;PYTHONPATH=/hpf/tools/centos6/$phylo_ver;python2 /hpf/tools/centos6/$phylo_ver/misc/post_assign_ssm.py --cnvs $cnvs_parse[$i] $nonsubsamp_variants $trees_zip $ssm_ids > $posthoc_out") == 0 or die "Failed to run post_assign_ssm.py\n";
+# }
 
 # Step 5: Parse JSON files and produce final outputs
 ###
 
 print "All done!\n";
 
-sub help {
-	print "Usage: $0 -n sample_name -m mut_rda -c battenberg_subclones -o outdir -p purity [-s sex] [-b subsamp_n]\n";
-}
+
+__END__
+
+=head1 NAME
+
+phylowgs.pl - Perform phylogenetic reconstruction from tumour sequencing data.
+
+=head1 SYNOPSIS
+
+phylowgs.pl [options]
+
+  Required parameters:
+    -n                          Sample name
+    -r                          Run name
+    -m                          Mutect RDA file
+    -c                          Battenberg cnv file
+    -o                          Output directory
+    -p                          Sample purity
+
+   Optional parameters:
+    -gender                     Patient gender
+    -subsamp                    Number of subsampled mutations [5000]
+    -i                          Priority SSMs bed file [/home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed]
+    -regions                    Which regions to use variants from. [normal_and_abnormal_cn]
+    -burn                       Number of burnin samples [1000]
+    -mcmc                       Number of mcmc iterations [2500]
+    -metrhast                   Number of MH iterations [5000]
+    -num_chains                 Number of chains for mulevolve.py [10]
+
+   Other:
+    -help     -h  Brief help message.
+    -man      -m  Full documentation.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-n>
+
+Sample name string
+
+=item B<-r>
+
+Run name used for multi-sample submission
+
+=item B<-m>
+
+Mutect RDA string from the Shlien lab mutation calling pipeline
+
+=item B<-c>
+
+Battenberg CNVs string (subclones.txt)
+
+=item B<-o>
+
+Directory to write output to.
+
+=item B<-p>
+
+Sample purity
+
+=item B<-gender>
+
+Patient gender in 'male' or 'female' format.
+
+=item B<-regions>
+
+Which regions to use variants from. Allowable values are {normal_cn,normal_and_abnormal_cn,all}. (default: normal_and_abnormal_cn) 
+                        
+=item B<-burn>
+
+Number of burnin samples (default 1000)
+
+=item B<-mcmc>
+
+Number of mcmc samples (default 2500)
+
+=item B<-metrhast>
+
+Number of MH iterations (default 5000)
+
+=item B<-num_chains>
+
+Number of chains for B<multievolve.py> (default 10)
+
+=back
+
+=head1 DESCRIPTION
+
+B<phylowgs.pl> will attempt to run all steps of the phylowgs pipeline, starting with SSM and CNV calls to producing JSON results files.
+
+To run the multisample mode provide the sample name, mutect, cnv files, and purity values as a comma seperated string as follows: 
+
+	phylowgs.pl -n {s1,s2,s3} -m {m1,m2,m3} -c {c1,c2,c3} -p {p1,p2,p3} -r run_name [OPTIONS]
+
+=cut
