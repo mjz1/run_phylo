@@ -2,22 +2,30 @@ import json
 import pandas as pd
 import os 
 import argparse
+import subprocess
 import glob
 import re
+import gzip
+import zipfile
 from functools import reduce
-import rpy2.robjects as robjects
-from rpy2.robjects import pandas2ri
-
+#import rpy2.robjects as robjects
+#from rpy2.robjects import pandas2ri
 
 def convert_rda(outdir, paths):
-	pandas2ri.activate()
+#	pandas2ri.activate()
 	rdas = []
 	for path in paths: 
-		rda = robjects.r.load(path)[0]
-		df = robjects.r[rda]
+		#### TEMP ####
+		temp_path = os.path.join(outdir, os.path.splitext(os.path.basename(path))[0]+".tmp") 
+		command = "Rscript /hpf/largeprojects/adam/projects/lfs/run_phylowgs/rda_to_tab.R --mutect " + path + " --outfile " + temp_path
+		subprocess.call(command, shell=True)
+		df = pd.read_csv(temp_path, header=0, delimiter='\t')
+		##############
+	#	rda = robjects.r.load(path)[0]
+	#	df = robjects.r[rda]
 		rdas.append(df)
-	#rda_dict = dict(zip(paths, rdas))
 	return(rdas)
+
 
 ## use summ to calculate best tree 
 def get_best_tree(outdir, summ_path):
@@ -27,12 +35,21 @@ def get_best_tree(outdir, summ_path):
 	max_density = densities.max()[0]
 	best_tidx = densities.idxmax()[0]
 	print("The best tree is tree {} with a density of {}".format(best_tidx, max_density))
-	best_tree = glob.glob(os.path.join(outdir, 'results/*.mutass/', best_tidx+".json"))[0]
+	best_tree = glob.glob(os.path.join(outdir, "results","mutass", best_tidx+".json"))[0]
 	return(best_tree)
 
 ## parse input
 def parse_input(outdir):
-#	rda = 
+	if not os.path.isdir(os.path.join(outdir ,"results", "mutass")):
+		zip_ref = zipfile.ZipFile(glob.glob(os.path.join(outdir ,"results/*.mutass.zip"))[0], 'r')
+		zip_ref.extractall(os.path.join(outdir ,"results","mutass"))
+		zip_ref.close()
+	if glob.glob(os.path.join(outdir ,"results/*.muts.json.gz")):
+		gunzip_muts = "gunzip " + glob.glob(os.path.join(outdir ,"results/*.muts.json.gz"))[0]
+		subprocess.call(gunzip_muts, shell=True)
+	if glob.glob(os.path.join(outdir ,"results/*.summ.json.gz")):
+		gunzip_summs = "gunzip " + glob.glob(os.path.join(outdir, "results/*.summ.json.gz"))[0]
+		subprocess.call(gunzip_summs, shell=True)
 	path_names = ['cnv_physical_path', 'ssm_physical_path', 'annotated_ssm_path', 'logical_ids_path', 'summ_path']
 	paths = [glob.glob(os.path.join(outdir,'*_cnv_data.txt'))[0], glob.glob(os.path.join(outdir,'*_ssm_data.txt'))[0], os.path.join(outdir , 'tmp/'), glob.glob(os.path.join(outdir ,"results/*.muts.json"))[0], glob.glob(os.path.join(outdir, "results/*.summ.json"))[0]]	
 	paths_dict = dict(zip(path_names, paths))
