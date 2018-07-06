@@ -11,8 +11,18 @@ from functools import reduce
 import rpy2.robjects as robjects
 from rpy2.robjects import pandas2ri
 
-def parse_phylotab(tab_path):
+def parse_phylotab(tab_path, parentdir):
 	tab = pd.read_csv(tab_path, header=0, delimiter='\t')
+	grouped = tab[['SNV_File','Multi_sample']].groupby('Multi_sample', as_index=False).agg({'SNV_File':[lambda x: ','.join(str(y) for y in x)]})
+	for sample in grouped['Multi_sample']:
+		sampledir = glob.glob(os.path.join(parentdir, sample+"_phylowgs.multi"))
+		if sampledir:
+			print("Creating phylowgs output for {}".format(sample))
+			mutect = grouped.loc[grouped.Multi_sample == sample, 'SNV_File'].values[0][0].split(',')
+			try:
+				create_table(sampledir[0],mutect)
+			except:
+				continue
 	
 def convert_rda(outdir, paths):
 	pandas2ri.activate()
@@ -22,7 +32,6 @@ def convert_rda(outdir, paths):
 		df = robjects.r[rda]
 		rdas.append(df)
 	return(rdas)
-
 
 ## use summ to calculate best tree 
 def get_best_tree(outdir, summ_path):
@@ -37,6 +46,8 @@ def get_best_tree(outdir, summ_path):
 
 ## parse input
 def parse_input(outdir):
+	if not os.path.isdir(os.path.join(outdir ,"results")):
+		print("ERROR: {} not found, skipping sample...".format(os.path.join(outdir ,"results")))
 	if not os.path.isdir(os.path.join(outdir ,"results", "mutass")):
 		zip_ref = zipfile.ZipFile(glob.glob(os.path.join(outdir ,"results/*.mutass.zip"))[0], 'r')
 		zip_ref.extractall(os.path.join(outdir ,"results","mutass"))
@@ -70,14 +81,14 @@ def create_table(outdir, mutect2):
 	muts = pd.melt(muts.transpose()).dropna()
 	phylo_dict = dict(zip(muts["value"], muts["variable"]))
 
-	cnv_physical = pd.read_csv(paths['cnv_physical_path'], header=0, delimiter='\t')
-	physical_id = pd.concat([cnv_physical['physical_cnvs'].str.split(';',expand=True),cnv_physical[['cnv','a','d']]],axis=1)
+	cnv_physical = pd.read_csv(paths['cnv_physical_path'], header=0, delimiter='\t', dtype={'a':str, 'd':str})
+	physical_id = pd.concat([cnv_physical['physical_cnvs'].str.split(';',expand=True),cnv_physical[['cnv','a','d']]],axis=1); del(cnv_physical)
 	physical_id = pd.melt(physical_id, id_vars=['cnv','a', 'd']).dropna()
 	physical_id[['chrom','start','end', 'major_cn','minor_cn','cell_prev']] = physical_id['value'].str.split(',',expand=True)
 	physical_id['value'] = physical_id['value'].str.replace('chrom=|start=|end=|major_cn=|minor_cn=|cell_prev=','').str.split(',', expand=True).loc[: ,0:2].apply(lambda x:'%s_%s_%s' % (x[0],x[1],x[2]),axis=1)
 	physical_id[[s + "_a" for s in samples]] = physical_id['a'].str.split(',', expand=True)
 	physical_id[[s + "_d" for s in samples]] = physical_id['d'].str.split(',', expand=True)
-	ssm_physical = pd.read_csv(paths['ssm_physical_path'], header=0, delimiter='\t')
+	ssm_physical = pd.read_csv(paths['ssm_physical_path'], header=0, delimiter='\t', dtype={'a':str, 'd':str})
 	ssm_physical[[s + "_a" for s in samples]] = ssm_physical['a'].str.split(',', expand=True)
 	ssm_physical[[s + "_d" for s in samples]] = ssm_physical['d'].str.split(',', expand=True)	
 	
@@ -95,19 +106,18 @@ def create_table(outdir, mutect2):
 	variants_a = pd.concat([ssm_physical[['id'] + [s + "_a" for s in samples]], physical_id[['cnv'] + [s + "_a" for s in samples]].rename(columns={'cnv':'id'})], ignore_index=True)
 	variants_d = pd.concat([ssm_physical[['id'] + [s + "_d" for s in samples]], physical_id[['cnv'] + [s + "_d" for s in samples]].rename(columns={'cnv':'id'})], ignore_index=True)
 	dfs = [variants, variants_a, variants_d]
-	variants = reduce(lambda left,right: pd.merge(left,right,on='id'), dfs)
-	variants.rename(columns={'gene':'snvid'},inplace=True)
-	
+	variants_final = reduce(lambda left,right: pd.merge(left,right,on='id'), dfs)
+	variants_final.rename(columns={'gene':'snvid'},inplace=True)
+	variants_final = variants_final.drop_duplicates()
 	for path, annotated_ssm in zip(mutect2, annotated_ssms):
 		annotated_sample_path = os.path.join(outdir, "results", os.path.basename(path).split('_annotated_filtered_clipped.rda')[0]+"_phylowgs.txt")
-		sample_variants = pd.merge(annotated_ssm, variants, how='left', on='snvid')
+		sample_variants = pd.merge(annotated_ssm, variants_final, how='left', on='snvid')
 		sample_variants.to_csv(annotated_sample_path, index=False, sep='\t')
 
 	annovar = list(filter(re.compile("annovar.*").match, annotated_ssms[0].columns))
 	cols = annovar + ["ensembl_gene","hgnc_gene","cosmic_census","aa", "snvid"] 
 	ssms_annotated = pd.concat(annotated_ssms)[cols].drop_duplicates(subset=['snvid'], keep='first')
-
-	variants_multisample = pd.merge(variants, ssms_annotated, how='left', on='snvid').drop_duplicates()
+	variants_multisample = pd.merge(variants_final, ssms_annotated, how='left', on='snvid').drop_duplicates()
 	outfile = os.path.join(outdir, "results", samples[0].split('_')[0] + "_phylowgs.txt")
 	variants_multisample.to_csv(outfile, index=False, sep='\t')
 #	print(variants.groupby(['clone']).agg({'position':['count',lambda x: ','.join(x)],'id':[lambda y: y.str.contains('c').count(), lambda x: x.str.contains('s').count()]}))
@@ -120,11 +130,17 @@ def main():
 	)
 
 	
-	parser.add_argument('-o','--outdir', required=True , dest='outdir', help='Output destination for variants')
-	parser.add_argument('-m','--mutect', nargs='+', dest='mutect2', help='Annotated rda for EACH sample in multisample', required=True)
-
+	parser.add_argument('-s','--sampledir', required=False, dest='sampledir', help='Directory containing sample phylowgs calls')
+	parser.add_argument('-m','--mutect', required=False, nargs='+', dest='mutect2', help='Annotated rda for EACH sample in multisample')
+	parser.add_argument('-t','--tab', required=False, dest='tab', help='Output destination for variants')
+	parser.add_argument('-p','--parentdir', required=False, dest='parentdir', help='Parent directory containing ALL phylowgs calls in tab file')
 	args = parser.parse_args()
-	create_table(args.outdir, args.mutect2)
-	
+
+	if args.tab and args.parentdir:
+		parse_phylotab(args.tab, args.parentdir)
+	elif args.sampledir and args.mutect2:
+		create_table(args.sampledir, args.mutect2)
+	else:
+		parser.error('--outdir and --mutect must be given together OR --tab must be given')
 
 main()
