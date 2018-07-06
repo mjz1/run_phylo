@@ -23,6 +23,8 @@ def parse_phylotab(tab_path, parentdir):
 				create_table(sampledir[0],mutect)
 			except:
 				continue
+		else:
+			print("ERROR: {} could not be found, skipping {}".format(sampledir, sample))
 	
 def convert_rda(outdir, paths):
 	pandas2ri.activate()
@@ -48,16 +50,21 @@ def get_best_tree(outdir, summ_path):
 def parse_input(outdir):
 	if not os.path.isdir(os.path.join(outdir ,"results")):
 		print("ERROR: {} not found, skipping sample...".format(os.path.join(outdir ,"results")))
+	if glob.glob(os.path.join(outdir ,"results/*.muts.json.gz")):
+		gunzip_muts = "gunzip " + glob.glob(os.path.join(outdir ,"results/*.muts.json.gz"))[0]
+		subprocess.call(gunzip_muts, shell=True)
+	else:
+		print("ERROR: {} not found, skipping sample...".format("muts.json.gz"))
+	if glob.glob(os.path.join(outdir ,"results/*.summ.json.gz")):
+		gunzip_summs = "gunzip " + glob.glob(os.path.join(outdir, "results/*.summ.json.gz"))[0]
+		subprocess.call(gunzip_summs, shell=True)
+	else:
+		print("ERROR: {} not found, skipping sample...".format("summ.json.gz"))
+
 	if not os.path.isdir(os.path.join(outdir ,"results", "mutass")):
 		zip_ref = zipfile.ZipFile(glob.glob(os.path.join(outdir ,"results/*.mutass.zip"))[0], 'r')
 		zip_ref.extractall(os.path.join(outdir ,"results","mutass"))
 		zip_ref.close()
-	if glob.glob(os.path.join(outdir ,"results/*.muts.json.gz")):
-		gunzip_muts = "gunzip " + glob.glob(os.path.join(outdir ,"results/*.muts.json.gz"))[0]
-		subprocess.call(gunzip_muts, shell=True)
-	if glob.glob(os.path.join(outdir ,"results/*.summ.json.gz")):
-		gunzip_summs = "gunzip " + glob.glob(os.path.join(outdir, "results/*.summ.json.gz"))[0]
-		subprocess.call(gunzip_summs, shell=True)
 	path_names = ['cnv_physical_path', 'ssm_physical_path', 'annotated_ssm_path', 'logical_ids_path', 'summ_path']
 	paths = [glob.glob(os.path.join(outdir,'*_cnv_data.txt'))[0], glob.glob(os.path.join(outdir,'*_ssm_data.txt'))[0], os.path.join(outdir , 'tmp/'), glob.glob(os.path.join(outdir ,"results/*.muts.json"))[0], glob.glob(os.path.join(outdir, "results/*.summ.json"))[0]]	
 	paths_dict = dict(zip(path_names, paths))
