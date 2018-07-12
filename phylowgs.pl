@@ -7,6 +7,9 @@
 # To test subsampling:
 # perl /home/mjz1/bin/run_phylowgs/phylowgs.pl -n kics_32_273811_274026 -m /hpf/largeprojects/adam/projects/kics/data/wgs_ssms/0032/N_-_274026+T_-_273811/273811_annotated_filtered_clipped.rda -c /hpf/largeprojects/adam/projects/icgc_tcga_datasets/RNAmp/kics/data/battenberg_3.3.2cgp_2.2.8bberg/kics_32_273811_274026_battenberg/kics_32_273811_274026_subclones.txt -o /hpf/largeprojects/adam/matthew/test_subsamp -p 0.79553 --gender male --regions normal_and_abnormal_cn -r test --subsamp 100 --burn 5 --mcmc 5 --metrhast 50 --num_chains 10
 
+# To test multisample
+# perl /home/mjz1/bin/run_phylowgs/phylowgs.pl -r 3311A -n 3311A_1,3311A_2,3311A_3 -m /hpf/largeprojects/adam/projects/lfs/analysis/ssm/3311A_1.wgs/3311A_1_annotated_filtered_clipped.rda,/hpf/largeprojects/adam/projects/lfs/analysis/ssm/3311A_2.wgs/3311A_2_annotated_filtered_clipped.rda,/hpf/largeprojects/adam/projects/lfs/analysis/ssm/3311A_3.wgs/3311A_3_annotated_filtered_clipped.rda -c /hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09/3311A_1_battenberg/3311A_1_subclones.txt,/hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09/3311A_2_battenberg/3311A_2_subclones.txt,/hpf/largeprojects/adam/projects/lfs/analysis/cnv/battenberg/battenberg-2018-04-09/3311A_3_battenberg/3311A_3_subclones.txt -o /hpf/largeprojects/adam/matthew/phylo_mutlisample_test_3//3311A_phylowgs.multi -p 0.73292,0.76846,0.89089 --gender female --subsamp 5000 -i /home/mjz1/bin/run_phylowgs/comsic.v85.all.grch37.bed --regions normal_and_abnormal_cn --burn 1000 --mcmc 2500 --metrhast 5000 --num_chains 10
+
 use Getopt::Long;
 use Pod::Usage;
 use Data::Dumper;
@@ -272,6 +275,7 @@ if (-e $mutass) {
 }
 
 # # Write human readable reports using morris lab smchet challenge code
+my $parse_pyth_ver = "python/3.5.2";
 if ($multi_flag == 0) {
 	my $output_dir = "$outdir/outputs";
 	if (!-e $output_dir) {
@@ -284,6 +288,16 @@ if ($multi_flag == 0) {
 		print "Writing PhyloWGS report...\n";
 		system("module purge; module load $phylo_ver; PYTHONPATH=/hpf/tools/centos6/$phylo_ver:/hpf/tools/centos6/python/2.7.11/lib/python2.7; $python /home/mjz1/bin/smchet-challenge/create-smchet-report/write_report.py $summ_json $muts_json $mutass $output_dir") == 0 or die "Failed to write phylowgs report\n";
 	}
+
+	print "Parsing PhyloWGS JSONs...\n";
+	system("module purge; module load $parse_pyth_ver; module load R/3.3.2shlib; python /home/mjz1/bin/run_phylowgs/phylowgs_table.py -s $outdir -m $mut");
+} else {
+	# module purge; module load python/3.5.0; module load R/3.3.2shlib; python /home/mjz1/bin/run_phylowgs/phylowgs_table.py -o /hpf/largeprojects/adam/matthew/test_subsamp -m /hpf/largeprojects/adam/projects/kics/data/wgs_ssms/0032/N_-_274026+T_-_273811/273811_annotated_filtered_clipped.rda
+
+	# Space seperate the mutect rdas
+	$mut =~s/,/ /g; 
+	print "Parsing PhyloWGS JSONs...\n";
+	system("module purge; module load $parse_pyth_ver; module load R/3.3.2shlib; python /home/mjz1/bin/run_phylowgs/phylowgs_table.py -s $outdir -m $mut");
 }
 
 # Step 4: Run post-hoc assignment CURRENTLY DISABLED
