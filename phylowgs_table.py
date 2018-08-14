@@ -50,21 +50,28 @@ def get_best_tree(outdir, summ_path):
 def parse_input(outdir):
 	if not os.path.isdir(os.path.join(outdir ,"results")):
 		print("ERROR: {} not found, skipping sample...".format(os.path.join(outdir ,"results")))
+
 	if glob.glob(os.path.join(outdir ,"results/*.muts.json.gz")):
 		gunzip_muts = "gunzip " + glob.glob(os.path.join(outdir ,"results/*.muts.json.gz"))[0]
 		subprocess.call(gunzip_muts, shell=True)
+	elif glob.glob(os.path.join(outdir ,"results/*.muts.json")):
+		pass
 	else:
-		print("ERROR: {} not found, skipping sample...".format("muts.json.gz"))
+		print("ERROR: {} not found, skipping sample...".format(os.path.join(outdir ,"results/*.muts.json.gz")))
+
 	if glob.glob(os.path.join(outdir ,"results/*.summ.json.gz")):
 		gunzip_summs = "gunzip " + glob.glob(os.path.join(outdir, "results/*.summ.json.gz"))[0]
 		subprocess.call(gunzip_summs, shell=True)
+	elif glob.glob(os.path.join(outdir ,"results/*.summ.json")):
+		pass
 	else:
-		print("ERROR: {} not found, skipping sample...".format("summ.json.gz"))
+		print("ERROR: {} not found, skipping sample...".format(os.path.join(outdir ,"results/*.summ.json.gz")))
 
 	if not os.path.isdir(os.path.join(outdir ,"results", "mutass")):
 		zip_ref = zipfile.ZipFile(glob.glob(os.path.join(outdir ,"results/*.mutass.zip"))[0], 'r')
 		zip_ref.extractall(os.path.join(outdir ,"results","mutass"))
 		zip_ref.close()
+
 	path_names = ['cnv_physical_path', 'ssm_physical_path', 'annotated_ssm_path', 'logical_ids_path', 'summ_path']
 	paths = [glob.glob(os.path.join(outdir,'*_cnv_data.txt'))[0], glob.glob(os.path.join(outdir,'*_ssm_data.txt'))[0], os.path.join(outdir , 'tmp/'), glob.glob(os.path.join(outdir ,"results/*.muts.json"))[0], glob.glob(os.path.join(outdir, "results/*.summ.json"))[0]]	
 	paths_dict = dict(zip(path_names, paths))
@@ -75,6 +82,8 @@ def create_table(outdir, mutect2):
 
 	paths = parse_input(outdir)
 	best_tree_path = get_best_tree(outdir, paths['summ_path'])
+
+	best_tree(outdir)
 
 	with open(best_tree_path) as f:
 	    phylo_json_dict = json.load(f)
@@ -129,6 +138,34 @@ def create_table(outdir, mutect2):
 	variants_multisample.to_csv(outfile, index=False, sep='\t')
 #	print(variants.groupby(['clone']).agg({'position':['count',lambda x: ','.join(x)],'id':[lambda y: y.str.contains('c').count(), lambda x: x.str.contains('s').count()]}))
 
+def best_tree(outdir):
+	paths = parse_input(outdir)
+	with open(paths['summ_path']) as f:
+		summ_dict = json.load(f)
+	densities = pd.DataFrame(summ_dict['tree_densities'], index=[0]).transpose()
+	best_tidx = densities.idxmax()[0]
+#	best_tidx="10"
+	samples = summ_dict['params']['samples']
+	best_tree = pd.DataFrame(summ_dict['trees'])[best_tidx]
+	best_tree.loc[~best_tree.index.isin(['populations'])].to_csv(os.path.join(outdir, "best_tree.txt"), sep='\t')
+	structure = best_tree['structure']
+	print_best_tree(outdir, structure)
+	populations = pd.DataFrame(best_tree['populations']).transpose()
+	population = pd.concat({'Cellular Prevalence': populations.cellular_prevalence.apply(pd.Series), 'Variants':populations.iloc[: ,1:3]}, axis=1)
+	population.columns.set_levels(samples +['num_cnvs','num_ssms'], level=1,inplace=True)
+	population.insert(0, 'Population', population.index)
+	population.to_csv(os.path.join(outdir, 'best_tree_populations.txt'),sep='\t', index=False)
+
+
+def print_best_tree(outdir, structure):
+	if not os.path.exists(os.path.join(outdir, "best_tree.txt")):
+		fw = open(os.path.join(outdir, "best_tree.txt"), "w")
+		levels = [value for values in structure.keys() for value in values]
+		for level, nodes in structure.items():
+			fw.write(' ----- ')
+			for node in nodes:
+				fw.write('%s' % node) 
+
 def main():
 
 	parser = argparse.ArgumentParser(
@@ -151,3 +188,4 @@ def main():
 		parser.error('--outdir and --mutect must be given together OR --tab must be given')
 
 main()
+
